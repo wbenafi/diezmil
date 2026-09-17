@@ -34,15 +34,11 @@
   .standings .score-row { min-height: 40px; padding: 6px 12px; }
 }
 .score-total { display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; }
-.score-medal { font-size: 18px; line-height: 1; }
-@font-face {
-  font-family: 'Medal Emoji';
-  src: url('/fonts/medals.woff2') format('woff2');
-  font-style: normal;
-  font-weight: 400;
-  font-display: swap;
+.score-medal {
+  font-family: 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', emoji, sans-serif;
+  font-size: 18px;
+  line-height: 1;
 }
-.score-medal { font-family: 'Medal Emoji', 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif; }
 
 /* Player identity colors also guide the active turn. */
 .player-tone-0 { --turn-color: var(--accent); }
