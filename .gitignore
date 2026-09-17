@@ -4,3 +4,5 @@ node_modules/
 *.tsbuildinfo
 .impeccable/review/
 test-results/
+.vercel
+.env*
