@@ -4,7 +4,7 @@ Mode: **Operate**. Spanish Next.js App Router application for a group sharing a 
 
 Authority: `PRODUCT_REQUIREMENTS.md` defines behavior, `PRODUCT.md` records confirmed product facts, and the existing `DESIGN.md` defines visual language. The supplied four-screen reference guides home, player setup, active play, and winner composition. This implementation extends that authority; it does not establish a new visual system.
 
-- Home introduces the game with CSS-rendered dice and a prominent “Nueva partida” action. No raster assets are used.
+- Home introduces the game with a prominent “Nueva partida” action and a generated, transparent product image of authentic poker dice. Visible faces use the game ranks 9, 10, J, Q, K, and A rather than ordinary dot pips; mint rim lighting connects the image to the established tabletop atmosphere.
 - Setup supports named players, removal, and accessible turn-order changes through labeled up/down buttons with 44px targets and disabled boundary states.
 - Playing keeps scores visible, identifies the current player with text and accent treatment, and offers manual entry, +50/+100/+500, save, history, and undo. Desktop places the scoreboard and scoring controls in two columns; at 700px and below they stack.
 - Winner presents the first player reaching 10.000, sorted standings, a new-game action, history, and undo of the winning turn.

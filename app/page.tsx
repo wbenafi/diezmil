@@ -1,11 +1,11 @@
 'use client';
 
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import Image from 'next/image';
 import { ArrowLeft, ArrowRight, ArrowUp, ArrowDown, Plus, Trash2, X, RotateCcw, List, Dice5, Users, Zap, ChartNoAxesColumnIncreasing, Trophy, MoreHorizontal, Check, HardDrive } from 'lucide-react';
 import { emptyGame, decodeGame, format, saveTurn, undoTurn, scoreValue, STORAGE_KEY, type Game, type Player } from '@/lib/game';
 
 function Avatar({player}: {player:Player}) {return <span className={`avatar color-${player.color%6}`} aria-hidden="true">{Array.from(player.name)[0]?.toUpperCase()}</span>}
-function Dice({value, className=''}:{value:number;className?:string}) {return <div className={`die ${className}`} aria-hidden="true">{['front','top','side'].map((face,index)=><div className={`face ${face}`} key={face}>{Array.from({length:9},(_,i)=><i key={i} className={([value,3,5][index]===5?[0,2,4,6,8]:[value,3,5][index]===3?[0,4,8]:[0,2,3,5,6,8]).includes(i)?'pip':''}/>)}</div> )}</div>}
 
 export default function Home() {
  const [game,setGame]=useState<Game>(emptyGame);
@@ -57,7 +57,7 @@ export default function Home() {
  {game.status==='home'?<main className="landing">
  <div className="landing-brand"><Dice5 size={26}/><span>El marcador de tu mesa</span></div>
  <div className="landing-copy"><h1>10.000</h1><p className="tagline">Misma mesa. Mejores partidas.</p><p className="intro">Los dados en la mesa.<br/>Los puntos, acá.</p><button className="primary landing-cta" onClick={newGame}>Nueva partida <ArrowRight size={22}/></button><span className="local-note"><HardDrive size={14}/> Tu partida se guarda en este dispositivo</span></div>
- <div className="dice-scene"><div className="table-light"/><Dice value={5} className="die-one"/><Dice value={6} className="die-two"/><Dice value={3} className="die-three"/></div>
+ <div className="dice-scene"><div className="table-light"/><Image className="poker-dice-hero" src="/images/poker-dice-hero.png" alt="Dados de póquer con A, K, Q, J, 10 y 9" fill sizes="(max-width: 700px) 82vw, 520px" preload/></div>
  <div className="features"><span><Users/>Fácil de usar</span><span><Zap/>Para cualquier grupo</span><span><ChartNoAxesColumnIncreasing/>Solo jugá</span></div>
  </main>:<>
  <header className="app-header">{game.status==='setup'||history?<button className="icon-button" aria-label="Volver" onClick={()=>history?setHistory(false):setGame(g=>({...g,status:'home'}))}><ArrowLeft/></button>:<Dice5 className="brand-dice" size={30}/>}
