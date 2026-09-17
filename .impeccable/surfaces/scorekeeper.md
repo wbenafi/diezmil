@@ -21,4 +21,5 @@ Evidence: source review of `app/page.tsx`, `app/globals.css`, `PRODUCT.md`, and 
 - Compact live standings retain turn order and show medal emoji for positive scores in the first three competition ranks; tied scores share a rank.
 - A small “+ Jugador” action below the standings opens an inline name field. Joining appends a zero-score player without changing the current turn, pending score, or history. Cancel/Escape closes the field; successful addition restores focus to its trigger.
 - The active turn's heading, top border, and background tint use the current player's assigned identity color.
+- A quiet global footer credits “Walter Benavides” and links to the same GitHub profile used by Ron 500.
 - Verified midgame joining, validation, cancellation, refresh recovery, turn progression, undo, and player colors in browser automation, including narrow mobile layout.
