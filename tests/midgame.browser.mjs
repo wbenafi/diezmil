@@ -1,0 +1,34 @@
+import {chromium} from '@playwright/test';
+import assert from 'node:assert/strict';
+const browser=await chromium.launch();
+const page=await browser.newPage({viewport:{width:390,height:844},reducedMotion:'reduce'});
+const errors=[];page.on('pageerror',e=>errors.push(e.message));
+await page.goto(process.env.APP_URL||'http://localhost:3001');
+await page.getByRole('button',{name:'Nueva partida',exact:true}).click();
+for(const name of ['Walter','Keylor']) {await page.locator('#player-name').fill(name);await page.getByRole('button',{name:'Agregar jugador',exact:true}).click();}
+await page.getByRole('button',{name:'Empezar partida'}).click();
+await page.getByLabel('Puntaje del turno').fill('500');await page.getByRole('button',{name:'Guardar 500'}).click();
+await page.getByLabel('Puntaje del turno').fill('350');
+await page.getByRole('button',{name:'Agregar jugador a la partida'}).click();
+await page.getByRole('button',{name:'Confirmar nuevo jugador'}).click();
+await page.getByText('Escribí el nombre del jugador.').waitFor();
+await page.locator('#midgame-player-name').fill('Eli');await page.getByRole('button',{name:'Confirmar nuevo jugador'}).click();
+assert.equal(await page.locator('.score-row').count(),3);
+assert.equal(await page.locator('.current-player h2').innerText(),'Keylor');
+assert.equal(await page.getByLabel('Puntaje del turno').inputValue(),'350');
+assert.equal(await page.locator('.current-player h2').evaluate(el=>getComputedStyle(el).color),'rgb(89, 176, 255)');
+assert.equal(await page.locator('#midgame-player-form').count(),0);
+await page.reload();await page.locator('.current-player h2').waitFor();
+assert.equal(await page.locator('.score-row').count(),3);
+assert.equal(await page.getByLabel('Puntaje del turno').inputValue(),'350');
+await page.getByRole('button',{name:'Guardar 350'}).click();
+assert.equal(await page.locator('.current-player h2').innerText(),'Eli');
+assert.equal(await page.locator('.current-player h2').evaluate(el=>getComputedStyle(el).color),'rgb(244, 181, 95)');
+await page.getByRole('button',{name:'Guardar 0'}).click();
+assert.equal(await page.locator('.current-player h2').innerText(),'Walter');
+await page.getByRole('button',{name:'Deshacer',exact:true}).click();
+assert.equal(await page.locator('.current-player h2').innerText(),'Eli');
+await page.getByRole('button',{name:'Agregar jugador a la partida'}).click();await page.locator('#midgame-player-name').fill('Discard');await page.keyboard.press('Escape');assert.equal(await page.locator('.score-row').count(),3);
+for(const [name,width,height] of [['midgame-mobile',390,844],['midgame-desktop',1440,900]]){await page.setViewportSize({width,height});await page.screenshot({path:'.impeccable/review/'+name+'.png',fullPage:true});}
+await page.setViewportSize({width:320,height:640});await page.getByRole('button',{name:'Agregar jugador a la partida'}).click();assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);await page.screenshot({path:'.impeccable/review/midgame-form.png',fullPage:true});
+assert.deepEqual(errors,[]);await browser.close();console.log('Midgame addition, validation, cancel, saved draft, persistence, turn order, undo, colors and mobile layout passed.');

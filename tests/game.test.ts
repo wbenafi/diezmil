@@ -1,0 +1,10 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {emptyGame, saveTurn, undoTurn, decodeGame, scoreValue, type Game} from '../lib/game';
+const game = ():Game=>({...emptyGame(),status:'playing',players:[{id:'a',name:'Walter',score:0,color:0},{id:'b',name:'Keylor',score:0,color:1}]});
+test('save records points, clears input, advances and wraps turn order',()=>{const first=saveTurn({...game(),input:'650'});assert.equal(first.players[0].score,650);assert.equal(first.current,1);assert.equal(first.input,'');assert.equal(first.turns[0].points,650);assert.equal(saveTurn({...first,input:'100'}).current,0)});
+test('zero-point turns advance and can be undone',()=>{const saved=saveTurn(game());assert.equal(saved.current,1);assert.equal(saved.turns.length,1);const undone=undoTurn(saved);assert.equal(undone.current,0);assert.equal(undone.input,'0');assert.equal(undone.turns.length,0)});
+test('undo removes last points and restores input and player',()=>{const saved=saveTurn({...game(),input:'650'});const undone=undoTurn(saved);assert.equal(undone.players[0].score,0);assert.equal(undone.current,0);assert.equal(undone.input,'650')});
+test('reaching or exceeding the target wins; undo reopens the game',()=>{for(const value of ['10000','10050']){const won=saveTurn({...game(),input:value});assert.equal(won.status,'finished');assert.equal(won.current,0);assert.equal(saveTurn(won),won);assert.equal(undoTurn(won).status,'playing')}});
+test('invalid scores cannot mutate game',()=>{for(const input of ['-50','1.5','1e3','abc','1000001']){const invalid={...game(),input};assert.equal(scoreValue(input),null);assert.equal(saveTurn(invalid),invalid)}});
+test('complete game state round trips and malformed storage is rejected',()=>{const saved=saveTurn({...game(),input:'650'});assert.deepEqual(decodeGame(JSON.stringify(saved)),saved);assert.equal(decodeGame('{'),null);assert.equal(decodeGame(JSON.stringify({...saved,current:20})),null);assert.equal(decodeGame(JSON.stringify({...saved,players:saved.players.map(p=>({...p,score:999}))})),null);assert.equal(decodeGame(JSON.stringify({...saved,turns:[{playerId:'missing',points:2}]})),null)});
