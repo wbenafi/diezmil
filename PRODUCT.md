@@ -7,8 +7,8 @@ Next.js App Router, React, TypeScript, localStorage. User requested Next.js and 
 ## Users and purpose
 Groups sharing one phone while playing 10.000 with physical dice. Record manually calculated scores with very few taps.
 ## Capabilities and constraints
-The authoritative feature brief is PRODUCT_REQUIREMENTS.md. Spanish interface. Player names and reorderable turn order; manual points and +50/+100/+500; save and automatic turn advance; undo including a winning turn; turn history; first player reaching 10,000 wins. Zero-point turns advance and are recorded (confirmed by user).
-Persist setup, names, order, totals, active player, input, history, and finished status in this browser. No accounts, backend, digital dice rolling, statistics, or configurable scoring.
+The authoritative feature brief is PRODUCT_REQUIREMENTS.md. Spanish interface. Player names and reorderable turn order; manual points and +50/+100/+500; save and automatic turn advance; undo including a winning turn; turn history. Setup includes two optional rules, disabled by default: exact 10,000 (going over records a scoreless bust) and a penalty that removes the last scoring turn after three consecutive turns without adding points, then resets that counter to zero. Zero-point turns advance and are recorded (confirmed by user), and the live standings show scoreless streaks only while their rule is active.
+Persist setup, rules, names, order, totals, active player, input, history, and finished status in this browser. No accounts, backend, digital dice rolling, statistics, or scoring configuration beyond the two supplied rules.
 ## Brand commitments
 Follow the existing DESIGN.md and the supplied four-screen image. Mobile-first dark surfaces and mint accents. Desktop uses scoreboard and scoring controls side by side.
 ## Product principles

@@ -1,4 +1,4 @@
-# Build a simple scorekeeper for the dice game “10.000”
+# Build “DiezMil”, a simple scorekeeper for the dice game “10.000”
 
 Build a simple, mobile-first web application for keeping score during a game of 10.000.
 
@@ -32,7 +32,7 @@ Avoid unnecessary screens, confirmations, modals, menus, or navigation.
 
 When there is no active game, show a simple starting screen with:
 
-- Game name: 10.000
+- App name: DiezMil
 - Primary action: Nueva partida
 
 Starting a new game takes the user to player setup.
@@ -215,7 +215,11 @@ The target score is:
 
 10,000 points
 
-When a player’s accumulated score reaches or exceeds 10,000, clearly communicate that they have reached the winning score.
+By default, reaching or exceeding 10,000 wins. During player setup, provide a compact rules menu where either optional rule can be enabled or disabled independently.
+
+- Exact target: the player must reach exactly 10,000. Going over does not add the entered points; record the turn as a bust, advance to the next player, and make the result clear in the active game and history.
+
+- Three-turn penalty: after a player has three consecutive turns without adding points, remove the points from that player’s latest scoring turn that has not already been penalized, then reset the scoreless counter to zero. Zero-point turns and busts both count toward the streak. While this rule is active, show a compact streak counter beside the player only when its value is greater than zero.
 
 Show the winner and final scores.
 
@@ -296,7 +300,7 @@ For the first version, explicitly avoid:
 - Player profiles
 - Statistics dashboards
 - Achievements
-- Configurable scoring rules
+- Additional configurable scoring rules beyond the two supplied options
 - Social features
 
 Keep the product focused on doing one thing extremely well:

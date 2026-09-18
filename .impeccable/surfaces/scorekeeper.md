@@ -7,9 +7,10 @@ Authority: `PRODUCT_REQUIREMENTS.md` defines behavior, `PRODUCT.md` records conf
 - Home introduces the game with a prominent “Nueva partida” action and a generated, transparent product image of authentic poker dice. Visible faces use the game ranks 9, 10, J, Q, K, and A rather than ordinary dot pips; mint rim lighting connects the image to the established tabletop atmosphere.
 - Setup supports named players, removal, and accessible turn-order changes through labeled up/down buttons with 44px targets and disabled boundary states.
 - Playing keeps scores visible, identifies the current player with text and accent treatment, and offers manual entry, +50/+100/+500, save, history, and undo. Desktop places the scoreboard and scoring controls in two columns; at 700px and below they stack.
-- Winner presents the first player reaching 10.000, sorted standings, a new-game action, history, and undo of the winning turn.
+- Winner presents the first player reaching the configured 10.000 target, sorted standings, a new-game action, history, and undo of the winning turn.
 - Browser localStorage restores setup and game state, including current input and history. Visible warnings explain unavailable storage. Starting over during active play requires confirmation.
 - Zero-point turns are explicitly user-confirmed product behavior: saving zero records the turn and advances play without an additional confirmation.
+- A compact setup menu offers two independent rules, disabled by default. Exact target makes going over 10.000 a visible scoreless bust; the three-turn penalty removes the latest unpenalized scoring turn after three turns without points, resets the counter to zero, and shows compact live streak counters beside player names.
 
 The stylesheet's foundation, accent, and text custom properties match `DESIGN.md`, as does the danger color. Components use these semantic tokens for dark surfaces, mint priority actions, focus, and selected rows; tabular scores, outline icons, rounded controls, and reduced-motion handling preserve the incumbent language.
 
