@@ -3,17 +3,19 @@ export const TARGET = 10000;
 export const SCORELESS_LIMIT = 3;
 
 export type Player = { id: string; name: string; score: number; color: number };
-export type Rules = { exactTarget: boolean; scorelessPenalty: boolean };
+export type Rules = { exactTarget: boolean; scorelessPenalty: boolean; tiePenalty: boolean };
+export type TiePenalty = { playerId: string; points: number; previousScore: number };
 export type Turn = {
  playerId: string;
  points: number;
  scoreChange: number;
  bust: boolean;
  penalty: number;
+ tiePenalties: TiePenalty[];
  at: string;
 };
 export type Game = {
- version: 4;
+ version: 5;
  status: 'home' | 'setup' | 'playing' | 'finished';
  players: Player[];
  current: number;
@@ -23,7 +25,7 @@ export type Game = {
  scorelessPenaltySince: number;
 };
 
-export const emptyGame = (): Game => ({version: 4, status: 'home', players: [], current: 0, turns: [], input: '', rules: {exactTarget: false, scorelessPenalty: false}, scorelessPenaltySince: 0});
+export const emptyGame = (): Game => ({version: 5, status: 'home', players: [], current: 0, turns: [], input: '', rules: {exactTarget: true, scorelessPenalty: true, tiePenalty: true}, scorelessPenaltySince: 0});
 export const format = (value: number) => new Intl.NumberFormat('de-DE').format(value);
 
 export function scoreValue(input: string): number | null {
@@ -47,9 +49,11 @@ export function scorelessTurns(turns: Turn[], playerId: string, since = 0): numb
 export function scoringTurnAtRisk(turns: Turn[], playerId: string): Turn | undefined {
  const available: Turn[] = [];
  for (const turn of turns) {
-  if (turn.playerId !== playerId) continue;
-  if (!turn.bust && turn.points > 0 && turn.scoreChange > 0) available.push(turn);
-  if (turn.penalty > 0) available.pop();
+  if (turn.playerId === playerId) {
+   if (!turn.bust && turn.points > 0 && turn.scoreChange > 0) available.push(turn);
+   if (turn.penalty > 0) available.pop();
+  }
+  if (turn.tiePenalties.some(penalty => penalty.playerId === playerId)) available.pop();
  }
  return available.at(-1);
 }
@@ -61,11 +65,26 @@ export function scoreAtRisk(turns: Turn[], playerId: string): number {
 export function playerTurnHistory(turns: Turn[], playerId: string) {
  let total = 0;
  let number = 0;
- return turns.flatMap(turn => {
-  if (turn.playerId !== playerId) return [];
-  number++;
-  total += turn.scoreChange;
-  return [{turn, number, total}];
+ return turns.flatMap((turn, index) => {
+  const tiePenalty = turn.tiePenalties.find(penalty => penalty.playerId === playerId);
+  if (turn.playerId !== playerId && !tiePenalty) return [];
+  if (!tiePenalty) number++;
+  total += tiePenalty ? -tiePenalty.points : turn.scoreChange;
+  return [{turn, number, total, tiePenalty, index}];
+ });
+}
+
+// Only newly banked points trigger ties. Resolve all opponents against the
+// same pre-turn scores, so a deduction cannot trigger another deduction.
+export function previewTiePenalties(game: Game, points = scoreValue(game.input)): TiePenalty[] {
+ const player = game.players[game.current];
+ if (game.status !== 'playing' || !game.rules.tiePenalty || !player || points === null || points <= 0) return [];
+ const total = player.score + points;
+ if (game.rules.exactTarget && total > TARGET) return [];
+ return game.players.flatMap(opponent => {
+  if (opponent.id === player.id || opponent.score !== total) return [];
+  const deduction = scoreAtRisk(game.turns, opponent.id);
+  return deduction > 0 ? [{playerId: opponent.id, points: deduction, previousScore: opponent.score}] : [];
  });
 }
 
@@ -83,7 +102,7 @@ function createTurn(turns: Turn[], player: Player, points: number, rules: Rules,
  const pointsAdded = bust ? 0 : points;
  const reachesPenalty = rules.scorelessPenalty && pointsAdded === 0 && scorelessTurns(turns, player.id, scorelessPenaltySince) === SCORELESS_LIMIT - 1;
  const penalty = reachesPenalty ? scoreAtRisk(turns, player.id) : 0;
- return {playerId: player.id, points, scoreChange: pointsAdded - penalty, bust, penalty, at};
+ return {playerId: player.id, points, scoreChange: pointsAdded - penalty, bust, penalty, tiePenalties: [], at};
 }
 
 export function saveTurn(game: Game): Game {
@@ -91,7 +110,12 @@ export function saveTurn(game: Game): Game {
  if (game.status !== 'playing' || points === null || !game.players[game.current]) return game;
  const player = game.players[game.current];
  const turn = createTurn(game.turns, player, points, game.rules, game.scorelessPenaltySince);
- const players = game.players.map(p => p.id === player.id ? {...p, score: p.score + turn.scoreChange} : p);
+ turn.tiePenalties = previewTiePenalties(game, points);
+ const players = game.players.map(p => {
+  if (p.id === player.id) return {...p, score: p.score + turn.scoreChange};
+  const penalty = turn.tiePenalties.find(penalty => penalty.playerId === p.id);
+  return penalty ? {...p, score: p.score - penalty.points} : p;
+ });
  const won = game.rules.exactTarget ? players[game.current].score === TARGET : players[game.current].score >= TARGET;
  return {
   ...game,
@@ -109,7 +133,7 @@ export function undoTurn(game: Game): Game {
  return {
   ...game,
   status: 'playing',
-  players: game.players.map(p => p.id === last.playerId ? {...p, score: p.score - last.scoreChange} : p),
+  players: game.players.map(p => p.id === last.playerId ? {...p, score: p.score - last.scoreChange} : {...p, score: p.score + (last.tiePenalties.find(penalty => penalty.playerId === p.id)?.points ?? 0)}),
   current: game.players.findIndex(p => p.id === last.playerId),
   turns: game.turns.slice(0, -1),
   scorelessPenaltySince: Math.min(game.scorelessPenaltySince, game.turns.length - 1),
@@ -118,7 +142,7 @@ export function undoTurn(game: Game): Game {
 }
 
 type StoredGame = Omit<Game, 'version' | 'turns' | 'rules' | 'scorelessPenaltySince'> & {
- version: 1 | 2 | 3 | 4;
+ version: 1 | 2 | 3 | 4 | 5;
  turns: Array<Partial<Turn> & Pick<Turn, 'playerId' | 'points' | 'at'>>;
  rules?: Partial<Rules>;
  scorelessPenaltySince?: number;
@@ -135,9 +159,9 @@ function validBaseGame(g: StoredGame): boolean {
 function migrateV1(g: StoredGame): Game {
  return {
   ...g,
-  version: 4,
-  turns: g.turns.map(turn => ({playerId: turn.playerId, points: turn.points, scoreChange: turn.points, bust: false, penalty: 0, at: turn.at})),
-  rules: {exactTarget: false, scorelessPenalty: false},
+  version: 5,
+  turns: g.turns.map(turn => ({playerId: turn.playerId, points: turn.points, scoreChange: turn.points, bust: false, penalty: 0, tiePenalties: [], at: turn.at})),
+  rules: {exactTarget: false, scorelessPenalty: false, tiePenalty: false},
   scorelessPenaltySince: g.turns.length,
  };
 }
@@ -145,7 +169,7 @@ function migrateV1(g: StoredGame): Game {
 export function decodeGame(raw: string): Game | null {
  try {
   const g = JSON.parse(raw) as StoredGame;
-  if (![1, 2, 3, 4].includes(g.version) || !validBaseGame(g)) return null;
+  if (![1, 2, 3, 4, 5].includes(g.version) || !validBaseGame(g)) return null;
   if (g.version === 1) {
    const oldTotals = new Map(g.players.map(p => [p.id, 0]));
    for (const turn of g.turns) oldTotals.set(turn.playerId, oldTotals.get(turn.playerId)! + turn.points);
@@ -153,18 +177,29 @@ export function decodeGame(raw: string): Game | null {
    return migrateV1(g);
   }
   const rules: Rules = g.version === 2
-   ? {exactTarget: true, scorelessPenalty: true}
-   : {exactTarget: g.rules?.exactTarget === true, scorelessPenalty: g.rules?.scorelessPenalty === true};
+   ? {exactTarget: true, scorelessPenalty: true, tiePenalty: false}
+   : {exactTarget: g.rules?.exactTarget === true, scorelessPenalty: g.rules?.scorelessPenalty === true, tiePenalty: g.version === 5 && g.rules?.tiePenalty === true};
   if (g.version >= 3 && (typeof g.rules?.exactTarget !== 'boolean' || typeof g.rules?.scorelessPenalty !== 'boolean')) return null;
-  if (g.version === 4 && (!Number.isInteger(g.scorelessPenaltySince) || g.scorelessPenaltySince! < 0 || g.scorelessPenaltySince! > g.turns.length)) return null;
-  const turns = g.turns as Turn[];
+  if (g.version === 5 && (typeof g.rules?.tiePenalty !== 'boolean' || g.turns.some(turn => !Array.isArray(turn.tiePenalties)))) return null;
+  if (g.version >= 4 && (!Number.isInteger(g.scorelessPenaltySince) || g.scorelessPenaltySince! < 0 || g.scorelessPenaltySince! > g.turns.length)) return null;
+  const turns = g.turns.map(turn => ({...turn, tiePenalties: g.version === 5 ? turn.tiePenalties : []})) as Turn[];
   if (turns.some(turn => !Number.isSafeInteger(turn.scoreChange) || !Number.isSafeInteger(turn.penalty) || turn.penalty < 0 || typeof turn.bust !== 'boolean' || turn.scoreChange !== (turn.bust ? 0 : turn.points) - turn.penalty || (g.version < 4 && ((!rules.exactTarget && turn.bust) || (!rules.scorelessPenalty && turn.penalty > 0))))) return null;
   const totals = new Map(g.players.map(p => [p.id, 0]));
-  for (const turn of turns) totals.set(turn.playerId, totals.get(turn.playerId)! + turn.scoreChange);
+  const previousTurns: Turn[] = [];
+  for (const turn of turns) {
+   totals.set(turn.playerId, totals.get(turn.playerId)! + turn.scoreChange);
+   const affected = new Set<string>();
+   for (const penalty of turn.tiePenalties) {
+    if (!penalty || !totals.has(penalty.playerId) || penalty.playerId === turn.playerId || affected.has(penalty.playerId) || !Number.isSafeInteger(penalty.points) || penalty.points <= 0 || turn.bust || turn.scoreChange <= 0 || penalty.previousScore !== totals.get(penalty.playerId) || penalty.previousScore !== totals.get(turn.playerId) || penalty.points !== scoreAtRisk(previousTurns, penalty.playerId) || penalty.points > penalty.previousScore) return null;
+    affected.add(penalty.playerId);
+    totals.set(penalty.playerId, penalty.previousScore - penalty.points);
+   }
+   previousTurns.push(turn);
+  }
   if (g.players.some(p => totals.get(p.id)! !== p.score || (rules.exactTarget && p.score > TARGET))) return null;
   if (g.status === 'finished' && (rules.exactTarget ? g.players[g.current]?.score !== TARGET : g.players[g.current]?.score < TARGET)) return null;
   if (g.status === 'playing' && g.players.some(p => rules.exactTarget ? p.score === TARGET : p.score >= TARGET)) return null;
-  return {...g, version: 4, turns, rules, scorelessPenaltySince: g.version === 4 ? g.scorelessPenaltySince! : rules.scorelessPenalty ? 0 : turns.length};
+  return {...g, version: 5, turns, rules, scorelessPenaltySince: g.version >= 4 ? g.scorelessPenaltySince! : rules.scorelessPenalty ? 0 : turns.length};
  } catch {
   return null;
  }

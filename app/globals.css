@@ -222,6 +222,23 @@
 .last-turn .turn-result.is-bust { color: var(--gold); }
 .last-turn .turn-result.is-penalty { color: var(--danger); }
 
+/* Tie feedback previews the deduction and preserves it with its source turn. */
+.tie-effects { display: grid; gap: 12px; min-width: 0; }
+.tie-effect { display: grid; gap: 4px; font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; color: var(--text-secondary); }
+.tie-effect b { font-weight: 600; color: var(--text-primary); }
+.tie-effect-score { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; font-variant-numeric: tabular-nums; }
+.tie-effect-score > b { color: var(--danger); font-size: 16px; }
+.tie-preview { margin-top: 16px; padding: 12px; border: 1px solid color-mix(in srgb, var(--gold) 40%, transparent); border-radius: 12px; background: color-mix(in srgb, var(--gold) 7%, var(--surface)); }
+.tie-preview .tie-effect-score > b { color: var(--gold); }
+.score-values { display: grid; justify-items: end; }
+.tie-deduction { color: var(--danger); font-size: 10px; font-weight: 500; }
+.score-row.was-tied { background-color: color-mix(in srgb, var(--danger) 6%, var(--surface)); }
+.last-turn { flex-wrap: wrap; }
+.last-turn > .tie-effects { flex-basis: 100%; border-top: 1px solid var(--border); padding-top: 12px; margin-top: 4px; }
+.history-list .history-entry { display: grid; gap: 12px; }
+.history-entry-main { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.history-entry > .tie-effects { padding-left: 36px; }
+
 @media (max-width: 360px) {
   .scoreless-streak { padding-inline: 4px; }
   .history-list { margin-inline: -4px; }
