@@ -207,6 +207,8 @@ The scoreboard should support different numbers of players without breaking the 
 
 Do not make users navigate to another screen just to see everyone’s score.
 
+Tapping any part of a player's scoreboard row opens a compact modal with that player's turns, numbered consecutively for that player and showing the running total. When the three-turn penalty rule is active, highlight the scoring turn that would be removed and show the resulting score.
+
 ---
 
 ## 8. Winning
@@ -216,6 +218,8 @@ The target score is:
 10,000 points
 
 By default, reaching or exceeding 10,000 wins. During player setup, provide a compact rules menu where either optional rule can be enabled or disabled independently.
+
+During an active game, the three-dot menu also allows either rule to be changed. Changes affect future turns only; saved turn results and scores remain unchanged. Activating the three-turn penalty starts a new scoreless streak.
 
 - Exact target: the player must reach exactly 10,000. Going over does not add the entered points; record the turn as a bust, advance to the next player, and make the result clear in the active game and history.
 

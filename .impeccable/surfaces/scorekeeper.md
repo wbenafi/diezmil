@@ -11,6 +11,7 @@ Authority: `PRODUCT_REQUIREMENTS.md` defines behavior, `PRODUCT.md` records conf
 - Browser localStorage restores setup and game state, including current input and history. Visible warnings explain unavailable storage. Starting over during active play requires confirmation.
 - Zero-point turns are explicitly user-confirmed product behavior: saving zero records the turn and advances play without an additional confirmation.
 - A compact setup menu offers two independent rules, disabled by default. Exact target makes going over 10.000 a visible scoreless bust; the three-turn penalty removes the latest unpenalized scoring turn after three turns without points, resets the counter to zero, and shows compact live streak counters beside player names.
+- During play, the three-dot menu opens a compact rules dialog. Rule changes apply to future turns; activating the penalty starts a fresh scoreless streak. Each complete player row opens a compact history dialog with player-specific turn numbering, running totals, and a highlighted scoring turn that would be deducted under the active penalty rule.
 
 The stylesheet's foundation, accent, and text custom properties match `DESIGN.md`, as does the danger color. Components use these semantic tokens for dark surfaces, mint priority actions, focus, and selected rows; tabular scores, outline icons, rounded controls, and reduced-motion handling preserve the incumbent language.
 
