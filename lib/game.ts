@@ -13,16 +13,17 @@ export type Turn = {
  at: string;
 };
 export type Game = {
- version: 3;
+ version: 4;
  status: 'home' | 'setup' | 'playing' | 'finished';
  players: Player[];
  current: number;
  turns: Turn[];
  input: string;
  rules: Rules;
+ scorelessPenaltySince: number;
 };
 
-export const emptyGame = (): Game => ({version: 3, status: 'home', players: [], current: 0, turns: [], input: '', rules: {exactTarget: false, scorelessPenalty: false}});
+export const emptyGame = (): Game => ({version: 4, status: 'home', players: [], current: 0, turns: [], input: '', rules: {exactTarget: false, scorelessPenalty: false}, scorelessPenaltySince: 0});
 export const format = (value: number) => new Intl.NumberFormat('de-DE').format(value);
 
 export function scoreValue(input: string): number | null {
@@ -31,19 +32,19 @@ export function scoreValue(input: string): number | null {
  return Number.isSafeInteger(value) && value >= 0 && value <= 1000000 ? value : null;
 }
 
-export function scorelessTurns(turns: Turn[], playerId: string): number {
+export function scorelessTurns(turns: Turn[], playerId: string, since = 0): number {
  let count = 0;
- for (let index = turns.length - 1; index >= 0; index--) {
+ for (let index = turns.length - 1; index >= since; index--) {
   const turn = turns[index];
   if (turn.playerId !== playerId) continue;
   if (turn.penalty > 0) break;
   if (!turn.bust && turn.points > 0) break;
   count++;
  }
- return count;
+ return count % SCORELESS_LIMIT;
 }
 
-function latestScoringTurn(turns: Turn[], playerId: string): Turn | undefined {
+export function scoringTurnAtRisk(turns: Turn[], playerId: string): Turn | undefined {
  const available: Turn[] = [];
  for (const turn of turns) {
   if (turn.playerId !== playerId) continue;
@@ -53,11 +54,35 @@ function latestScoringTurn(turns: Turn[], playerId: string): Turn | undefined {
  return available.at(-1);
 }
 
-function createTurn(turns: Turn[], player: Player, points: number, rules: Rules, at = new Date().toISOString()): Turn {
+export function scoreAtRisk(turns: Turn[], playerId: string): number {
+ return scoringTurnAtRisk(turns, playerId)?.scoreChange ?? 0;
+}
+
+export function playerTurnHistory(turns: Turn[], playerId: string) {
+ let total = 0;
+ let number = 0;
+ return turns.flatMap(turn => {
+  if (turn.playerId !== playerId) return [];
+  number++;
+  total += turn.scoreChange;
+  return [{turn, number, total}];
+ });
+}
+
+export function changeRule(game: Game, rule: keyof Rules, enabled: boolean): Game {
+ if ((game.status !== 'setup' && game.status !== 'playing') || game.rules[rule] === enabled) return game;
+ return {
+  ...game,
+  rules: {...game.rules, [rule]: enabled},
+  scorelessPenaltySince: rule === 'scorelessPenalty' ? game.turns.length : game.scorelessPenaltySince,
+ };
+}
+
+function createTurn(turns: Turn[], player: Player, points: number, rules: Rules, scorelessPenaltySince: number, at = new Date().toISOString()): Turn {
  const bust = rules.exactTarget && player.score + points > TARGET;
  const pointsAdded = bust ? 0 : points;
- const reachesPenalty = rules.scorelessPenalty && pointsAdded === 0 && scorelessTurns(turns, player.id) === SCORELESS_LIMIT - 1;
- const penalty = reachesPenalty ? latestScoringTurn(turns, player.id)?.scoreChange ?? 0 : 0;
+ const reachesPenalty = rules.scorelessPenalty && pointsAdded === 0 && scorelessTurns(turns, player.id, scorelessPenaltySince) === SCORELESS_LIMIT - 1;
+ const penalty = reachesPenalty ? scoreAtRisk(turns, player.id) : 0;
  return {playerId: player.id, points, scoreChange: pointsAdded - penalty, bust, penalty, at};
 }
 
@@ -65,7 +90,7 @@ export function saveTurn(game: Game): Game {
  const points = scoreValue(game.input);
  if (game.status !== 'playing' || points === null || !game.players[game.current]) return game;
  const player = game.players[game.current];
- const turn = createTurn(game.turns, player, points, game.rules);
+ const turn = createTurn(game.turns, player, points, game.rules, game.scorelessPenaltySince);
  const players = game.players.map(p => p.id === player.id ? {...p, score: p.score + turn.scoreChange} : p);
  const won = game.rules.exactTarget ? players[game.current].score === TARGET : players[game.current].score >= TARGET;
  return {
@@ -87,14 +112,16 @@ export function undoTurn(game: Game): Game {
   players: game.players.map(p => p.id === last.playerId ? {...p, score: p.score - last.scoreChange} : p),
   current: game.players.findIndex(p => p.id === last.playerId),
   turns: game.turns.slice(0, -1),
+  scorelessPenaltySince: Math.min(game.scorelessPenaltySince, game.turns.length - 1),
   input: String(last.points),
  };
 }
 
-type StoredGame = Omit<Game, 'version' | 'turns' | 'rules'> & {
- version: 1 | 2 | 3;
+type StoredGame = Omit<Game, 'version' | 'turns' | 'rules' | 'scorelessPenaltySince'> & {
+ version: 1 | 2 | 3 | 4;
  turns: Array<Partial<Turn> & Pick<Turn, 'playerId' | 'points' | 'at'>>;
  rules?: Partial<Rules>;
+ scorelessPenaltySince?: number;
 };
 
 function validBaseGame(g: StoredGame): boolean {
@@ -108,16 +135,17 @@ function validBaseGame(g: StoredGame): boolean {
 function migrateV1(g: StoredGame): Game {
  return {
   ...g,
-  version: 3,
+  version: 4,
   turns: g.turns.map(turn => ({playerId: turn.playerId, points: turn.points, scoreChange: turn.points, bust: false, penalty: 0, at: turn.at})),
   rules: {exactTarget: false, scorelessPenalty: false},
+  scorelessPenaltySince: g.turns.length,
  };
 }
 
 export function decodeGame(raw: string): Game | null {
  try {
   const g = JSON.parse(raw) as StoredGame;
-  if (![1, 2, 3].includes(g.version) || !validBaseGame(g)) return null;
+  if (![1, 2, 3, 4].includes(g.version) || !validBaseGame(g)) return null;
   if (g.version === 1) {
    const oldTotals = new Map(g.players.map(p => [p.id, 0]));
    for (const turn of g.turns) oldTotals.set(turn.playerId, oldTotals.get(turn.playerId)! + turn.points);
@@ -127,15 +155,16 @@ export function decodeGame(raw: string): Game | null {
   const rules: Rules = g.version === 2
    ? {exactTarget: true, scorelessPenalty: true}
    : {exactTarget: g.rules?.exactTarget === true, scorelessPenalty: g.rules?.scorelessPenalty === true};
-  if (g.version === 3 && (typeof g.rules?.exactTarget !== 'boolean' || typeof g.rules?.scorelessPenalty !== 'boolean')) return null;
+  if (g.version >= 3 && (typeof g.rules?.exactTarget !== 'boolean' || typeof g.rules?.scorelessPenalty !== 'boolean')) return null;
+  if (g.version === 4 && (!Number.isInteger(g.scorelessPenaltySince) || g.scorelessPenaltySince! < 0 || g.scorelessPenaltySince! > g.turns.length)) return null;
   const turns = g.turns as Turn[];
-  if (turns.some(turn => !Number.isSafeInteger(turn.scoreChange) || !Number.isSafeInteger(turn.penalty) || turn.penalty < 0 || typeof turn.bust !== 'boolean' || turn.scoreChange !== (turn.bust ? 0 : turn.points) - turn.penalty || (!rules.exactTarget && turn.bust) || (!rules.scorelessPenalty && turn.penalty > 0))) return null;
+  if (turns.some(turn => !Number.isSafeInteger(turn.scoreChange) || !Number.isSafeInteger(turn.penalty) || turn.penalty < 0 || typeof turn.bust !== 'boolean' || turn.scoreChange !== (turn.bust ? 0 : turn.points) - turn.penalty || (g.version < 4 && ((!rules.exactTarget && turn.bust) || (!rules.scorelessPenalty && turn.penalty > 0))))) return null;
   const totals = new Map(g.players.map(p => [p.id, 0]));
   for (const turn of turns) totals.set(turn.playerId, totals.get(turn.playerId)! + turn.scoreChange);
   if (g.players.some(p => totals.get(p.id)! !== p.score || (rules.exactTarget && p.score > TARGET))) return null;
   if (g.status === 'finished' && (rules.exactTarget ? g.players[g.current]?.score !== TARGET : g.players[g.current]?.score < TARGET)) return null;
   if (g.status === 'playing' && g.players.some(p => rules.exactTarget ? p.score === TARGET : p.score >= TARGET)) return null;
-  return {...g, version: 3, turns, rules} as Game;
+  return {...g, version: 4, turns, rules, scorelessPenaltySince: g.version === 4 ? g.scorelessPenaltySince! : rules.scorelessPenalty ? 0 : turns.length};
  } catch {
   return null;
  }
