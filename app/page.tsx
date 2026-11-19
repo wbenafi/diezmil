@@ -3,8 +3,8 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import Image from 'next/image';
 import pokerDiceHero from '@/public/images/poker-dice-hero.webp';
-import { ArrowLeft, ArrowRight, ArrowUp, ArrowDown, Plus, Trash2, X, RotateCcw, List, Dice5, Users, Zap, ChartNoAxesColumnIncreasing, Trophy, MoreHorizontal, Check, HardDrive, CircleMinus, Settings2, ChevronDown } from 'lucide-react';
-import { emptyGame, decodeGame, format, saveTurn, undoTurn, changeRule, scoreValue, scorelessTurns, scoringTurnAtRisk, playerTurnHistory, previewTiePenalties, STORAGE_KEY, TARGET, type Game, type Player, type Rules, type Turn, type TiePenalty } from '@/lib/game';
+import { ArrowLeft, ArrowRight, ArrowUp, ArrowDown, Plus, Trash2, X, RotateCcw, List, Dice5, Users, Zap, ChartNoAxesColumnIncreasing, Trophy, MoreHorizontal, Check, HardDrive, CircleMinus, Settings2, ChevronDown, Hourglass } from 'lucide-react';
+import { emptyGame, decodeGame, format, saveTurn, undoTurn, changeRule, scoreValue, penaltyPhase, activeScorelessTurns, scoringTurnAtRisk, playerTurnHistory, previewTiePenalties, STORAGE_KEY, TARGET, type Game, type Player, type Rules, type Turn, type TiePenalty } from '@/lib/game';
 
 function Avatar({player}: {player:Player}) {return <span className={`avatar color-${player.color%6}`} aria-hidden="true">{Array.from(player.name)[0]?.toUpperCase()}</span>}
 
@@ -29,11 +29,12 @@ function RuleOptions({rules,onChange}:{rules:Rules;onChange:(rule:keyof Rules,en
    <label className="rule-option"><span className="rule-copy"><strong>Llegar exacto a 10.000</strong><small>Si se pasa, el turno suma 0.</small></span><input type="checkbox" checked={rules.exactTarget} onChange={event=>onChange('exactTarget',event.target.checked)}/><span className="rule-switch" aria-hidden="true"><span/></span></label>
    <label className="rule-option"><span className="rule-copy"><strong>Penalización por 3 turnos</strong><small>Al tercero sin sumar, pierde su última anotación.</small></span><input type="checkbox" checked={rules.scorelessPenalty} onChange={event=>onChange('scorelessPenalty',event.target.checked)}/><span className="rule-switch" aria-hidden="true"><span/></span></label>
    <label className="rule-option"><span className="rule-copy"><strong>Penalización por empate</strong><small>Si al sumar empatás a otro, pierde su última anotación aún no descontada. Sin efecto en cadena.</small></span><input type="checkbox" checked={rules.tiePenalty} onChange={event=>onChange('tiePenalty',event.target.checked)}/><span className="rule-switch" aria-hidden="true"><span/></span></label>
+   <label className="rule-option"><span className="rule-copy"><strong>Penalizaciones con 300 o más</strong><small>Los 3 turnos y el empate aplican cuando todos tengan 300 o más.</small></span><input type="checkbox" checked={rules.penaltiesAfterEntry} onChange={event=>onChange('penaltiesAfterEntry',event.target.checked)}/><span className="rule-switch" aria-hidden="true"><span/></span></label>
   </div>;
 }
 
 function RulesMenu({rules,onChange}:{rules:Rules;onChange:(rule:keyof Rules,enabled:boolean)=>void}) {
- const active=Number(rules.exactTarget)+Number(rules.scorelessPenalty)+Number(rules.tiePenalty);
+ const active=Object.values(rules).filter(Boolean).length;
  return <details className="rules-menu">
   <summary><span className="rules-summary-main"><Settings2 size={19}/><span><strong>Reglas de partida</strong><small>{active===0?'Sin reglas opcionales':`${active} ${active===1?'regla activa':'reglas activas'}`}</small></span></span><ChevronDown className="rules-chevron" size={18}/></summary>
   <RuleOptions rules={rules} onChange={onChange}/>
@@ -66,7 +67,9 @@ export default function Home() {
  const current=game.players[game.current];
  const historyPlayer=game.players.find(p=>p.id===historyPlayerId);
  const playerHistory=historyPlayer?playerTurnHistory(game.turns,historyPlayer.id):[];
- const riskTurn=historyPlayer&&(game.rules.scorelessPenalty||game.rules.tiePenalty)?scoringTurnAtRisk(game.turns,historyPlayer.id):undefined;
+ const penaltiesOn=game.rules.scorelessPenalty||game.rules.tiePenalty;
+ const penaltiesPaused=penaltiesOn&&!penaltyPhase(game).active;
+ const riskTurn=!penaltiesPaused&&historyPlayer&&(game.rules.scorelessPenalty||game.rules.tiePenalty)?scoringTurnAtRisk(game.turns,historyPlayer.id):undefined;
  const atRisk=riskTurn?.scoreChange??0;
  const playerTurnCount=playerHistory.filter(entry=>!entry.tiePenalty).length;
  const tiePreview=previewTiePenalties(game);
@@ -90,7 +93,7 @@ export default function Home() {
    {players.map(p=>{
    const rank=1+game.players.filter(other=>other.score>p.score).length;
    const medal=p.score>0?['🥇','🥈','🥉'][rank-1]:undefined;
-   const scoreless=!final&&game.rules.scorelessPenalty?scorelessTurns(game.turns,p.id,game.scorelessPenaltySince):0;
+   const scoreless=!final&&game.rules.scorelessPenalty?activeScorelessTurns(game,p.id):0;
    const tiePenalty=last?.tiePenalties.find(penalty=>penalty.playerId===p.id);
    return <li key={p.id} className={`score-row ${p.id===current?.id?'is-current':''} ${tiePenalty?'was-tied':''}`} aria-current={!final&&p.id===current?.id?'step':undefined}>
      <button className="score-row-button" aria-label={`Ver historial de ${p.name}, ${format(p.score)} puntos`} onClick={()=>openHistory(p.id)}>
@@ -119,7 +122,7 @@ export default function Home() {
  <main>
  {history?<section className="history-screen"><h1>Turno a turno</h1><p className="muted">{game.turns.length} {game.turns.length===1?'turno guardado':'turnos guardados'}</p>{game.turns.length===0?<div className="empty-state"><List size={36}/><h2>La partida está por empezar</h2><p>Los puntos que guardés aparecerán acá.</p><button className="secondary" onClick={()=>setHistory(false)}>Volver a la partida <ArrowRight size={18}/></button></div>:<ol className="history-list">{game.turns.map((turn,i)=>{const p=game.players.find(p=>p.id===turn.playerId)!;return <li key={i} className="history-entry"><div className="history-entry-main"><span className="turn-number">{i+1}</span><Avatar player={p}/><span className="player-name">{p.name}</span><strong><TurnResult turn={turn}/></strong></div><TieEffects penalties={turn.tiePenalties} players={game.players}/></li>}).reverse()}</ol>}{last&&<button className="secondary wide" onClick={undo}><RotateCcw size={18}/>Deshacer último turno</button>}</section>
  :game.status==='setup'?<section className="setup-screen"><div><h1>Jugadores</h1><p className="muted">Agregá los jugadores en el orden de los turnos.</p></div><ol className="setup-list">{game.players.map((p,i)=><li key={p.id}><div className="reorder"><button aria-label={`Subir a ${p.name}`} disabled={i===0} onClick={()=>move(i,-1)}><ArrowUp size={16}/></button><button aria-label={`Bajar a ${p.name}`} disabled={i===game.players.length-1} onClick={()=>move(i,1)}><ArrowDown size={16}/></button></div><Avatar player={p}/><span className="player-name">{p.name}</span><button className="icon-button remove" aria-label={`Quitar a ${p.name}`} onClick={()=>setGame(g=>({...g,players:g.players.filter(x=>x.id!==p.id)}))}><Trash2 size={20}/></button></li>)}</ol><form className="add-player" onSubmit={e=>{e.preventDefault();addPlayer()}}><label htmlFor="player-name">{game.players.length?'Agregar jugador':'¿Quiénes juegan hoy?'}</label><div className="add-input"><input ref={nameInput} id="player-name" maxLength={40} autoComplete="off" placeholder="Nombre del jugador" value={name} onChange={e=>{setName(e.target.value);setNameError('')}} aria-invalid={!!nameError} aria-describedby={nameError?'name-error':undefined}/><button className="icon-button" aria-label="Agregar jugador" type="submit"><Plus/></button></div>{nameError&&<p className="error" id="name-error">{nameError}</p>}</form><RulesMenu rules={game.rules} onChange={setRule}/><div className="setup-bottom"><p className="setup-hint">{game.players.length?`${game.players.length} ${game.players.length===1?'jugador listo':'jugadores listos'}. Que empiece la buena suerte.`:'Una mesa, tus amigos y los dados.'}</p><button className="primary wide" disabled={!game.players.length} onClick={()=>{setGame(g=>({...g,status:'playing'}));setName('')}}>Empezar partida <ArrowRight size={22}/></button></div></section>
- :game.status==='playing'?<div className="game-layout"><section className="standings"><div className="section-heading"><h1>La mesa</h1><span>{game.rules.exactTarget?'Meta exacta':'Meta'}: 10.000</span></div>{scoreboard()}<div className="standings-tools"><p className="desktop-note"><Users size={16}/> {game.players.length} {game.players.length===1?'jugador':'jugadores'} · Turno {game.turns.length+1}</p><button ref={addPlayerButton} className="ghost add-during-game" aria-label="Agregar jugador a la partida" aria-expanded={addingPlayer} aria-controls="midgame-player-form" onClick={()=>{if(addingPlayer){closeAddPlayer();}else{setName('');setNameError('');setAddingPlayer(true);}}}><Plus size={16}/>Jugador</button></div>
+ :game.status==='playing'?<div className="game-layout"><section className="standings"><div className="section-heading"><h1>La mesa</h1><span>{game.rules.exactTarget?'Meta exacta':'Meta'}: 10.000</span></div>{scoreboard()}<div className="standings-tools">{penaltiesPaused?<p className="penalty-pause" role="status"><Hourglass size={14} aria-hidden="true"/><span>Penalizaciones cuando <span className="penalty-pause-line">todos tengan 300 o más</span></span></p>:<p className="desktop-note"><Users size={16}/> {game.players.length} {game.players.length===1?'jugador':'jugadores'} · Turno {game.turns.length+1}</p>}<button ref={addPlayerButton} className="ghost add-during-game" aria-label="Agregar jugador a la partida" aria-expanded={addingPlayer} aria-controls="midgame-player-form" onClick={()=>{if(addingPlayer){closeAddPlayer();}else{setName('');setNameError('');setAddingPlayer(true);}}}><Plus size={16}/>Jugador</button></div>
  {addingPlayer&&<form id="midgame-player-form" className="add-player midgame-player" onSubmit={e=>{e.preventDefault();addPlayer()}} onKeyDown={e=>{if(e.key==='Escape'){e.preventDefault();closeAddPlayer();}}}>
  <label htmlFor="midgame-player-name">Nuevo jugador · se suma al final con 0 puntos</label>
  <div className="add-input"><input ref={nameInput} autoFocus id="midgame-player-name" maxLength={40} autoComplete="off" placeholder="Nombre del jugador" value={name} onChange={e=>{setName(e.target.value);setNameError('')}} aria-invalid={!!nameError} aria-describedby={nameError?'midgame-name-error':undefined}/><button className="icon-button" type="submit" aria-label="Confirmar nuevo jugador"><Check size={20}/></button><button className="icon-button" type="button" aria-label="Cancelar nuevo jugador" onClick={closeAddPlayer}><X size={18}/></button></div>
