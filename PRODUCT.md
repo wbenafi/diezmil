@@ -13,3 +13,5 @@ Preview tie deductions before saving; show their effects in the last turn, stand
 Follow the existing DESIGN.md and the supplied four-screen image. Mobile-first dark surfaces and mint accents. Desktop uses scoreboard and scoring controls side by side.
 ## Product principles
 Keep scores visible, emphasize the current player, avoid confirmations except when replacing an active game, and recover quickly from mistaken entries.
+
+"Penalties at 300 or more" is a game rule, on by default for new games: the three-turn and tie penalties wait until every player's running total has reached 300. Points below 300 always count. While penalties wait, the standings show one global notice. The turn that brings the last player to 300 is protected; rayitas start at zero after it. Reaching 300 is derived from saved history, so undo/reload work and later deductions below 300 do not pause penalties again. Adding a player during play pauses penalties until they reach 300. Turning the rule off applies penalties immediately with a fresh streak. Games saved before this rule existed keep it off, so their results are preserved.

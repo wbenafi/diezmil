@@ -2,7 +2,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {emptyGame, saveTurn, undoTurn, changeRule, decodeGame, scoreAtRisk, scorelessTurns, playerTurnHistory, previewTiePenalties, type Game} from '../lib/game';
 
-const game = (): Game => ({...emptyGame(), rules: {exactTarget: false, scorelessPenalty: false, tiePenalty: false}, status: 'playing', players: ['Ana', 'Bruno', 'Carla'].map((name, color) => ({id: name, name, color, score: 0}))});
+const game = (): Game => ({...emptyGame(), rules: {exactTarget: false, scorelessPenalty: false, tiePenalty: false, penaltiesAfterEntry: false}, status: 'playing', players: ['Ana', 'Bruno', 'Carla'].map((name, color) => ({id: name, name, color, score: 0}))});
 const score = (game: Game, current: number, points: number) => saveTurn({...game, current, input: String(points)});
 function ready() {
  let g = score(game(), 0, 1000);

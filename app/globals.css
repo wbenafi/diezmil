@@ -244,3 +244,23 @@
   .history-list { margin-inline: -4px; }
   .history-list li { gap: 8px; }
 }
+
+/* Global, quiet notice while both penalties wait for everyone to reach 300. */
+.penalty-pause {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  margin: 8px auto 8px 0;
+  padding: 8px 12px;
+  border: 1px solid color-mix(in srgb, var(--gold) 30%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--gold) 7%, var(--surface));
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.35;
+}
+.penalty-pause span { text-wrap: balance; }
+.penalty-pause svg { color: var(--gold); }
+/* On narrow screens break into two even lines; the box hugs the longer one. */
+@media (max-width: 700px) { .penalty-pause-line { display: block; } }

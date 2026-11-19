@@ -310,3 +310,7 @@ For the first version, explicitly avoid:
 Keep the product focused on doing one thing extremely well:
 
 Keeping track of turns and scores so the players can focus on playing 10.000.
+
+## Penalties at 300 or more (feedback clarification)
+
+"Penalties at 300 or more" is a game rule, on by default for new games: the three-turn and tie penalties wait until every player's running total has reached 300. Points below 300 always count. While penalties wait, the standings show one global notice. The turn that brings the last player to 300 is protected; rayitas start at zero after it. Reaching 300 is derived from saved history, so undo/reload work and later deductions below 300 do not pause penalties again. Adding a player during play pauses penalties until they reach 300. Turning the rule off applies penalties immediately with a fresh streak. Games saved before this rule existed keep it off, so their results are preserved.

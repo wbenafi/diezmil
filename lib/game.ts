@@ -1,9 +1,10 @@
 export const STORAGE_KEY = 'diezmil.game.v1';
 export const TARGET = 10000;
 export const SCORELESS_LIMIT = 3;
+export const ENTRY_MINIMUM = 300;
 
 export type Player = { id: string; name: string; score: number; color: number };
-export type Rules = { exactTarget: boolean; scorelessPenalty: boolean; tiePenalty: boolean };
+export type Rules = { exactTarget: boolean; scorelessPenalty: boolean; tiePenalty: boolean; penaltiesAfterEntry: boolean };
 export type TiePenalty = { playerId: string; points: number; previousScore: number };
 export type Turn = {
  playerId: string;
@@ -25,7 +26,7 @@ export type Game = {
  scorelessPenaltySince: number;
 };
 
-export const emptyGame = (): Game => ({version: 5, status: 'home', players: [], current: 0, turns: [], input: '', rules: {exactTarget: true, scorelessPenalty: true, tiePenalty: true}, scorelessPenaltySince: 0});
+export const emptyGame = (): Game => ({version: 5, status: 'home', players: [], current: 0, turns: [], input: '', rules: {exactTarget: true, scorelessPenalty: true, tiePenalty: true, penaltiesAfterEntry: true}, scorelessPenaltySince: 0});
 export const format = (value: number) => new Intl.NumberFormat('de-DE').format(value);
 
 export function scoreValue(input: string): number | null {
@@ -44,6 +45,35 @@ export function scorelessTurns(turns: Turn[], playerId: string, since = 0): numb
   count++;
  }
  return count % SCORELESS_LIMIT;
+}
+
+// A player has entered once their running total reaches 300, whatever the turn
+// size. Entry is historical: a later deduction does not make someone leave.
+// Replaying also makes undo and old saved games use the same entry boundary.
+export function entryState(game: Game) {
+ const totals = new Map(game.players.map(player => [player.id, 0]));
+ const entered = new Set<string>();
+ let since: number | null = null;
+ game.turns.forEach((turn, index) => {
+  const total = (totals.get(turn.playerId) ?? 0) + turn.scoreChange;
+  totals.set(turn.playerId, total);
+  if (total >= ENTRY_MINIMUM) entered.add(turn.playerId);
+  for (const penalty of turn.tiePenalties) totals.set(penalty.playerId, (totals.get(penalty.playerId) ?? 0) - penalty.points);
+  if (since === null && game.players.length > 0 && game.players.every(player => entered.has(player.id))) since = index + 1;
+ });
+ return {entered, since, ready: since !== null};
+}
+
+// With penaltiesAfterEntry off, both penalties run from the first turn.
+export function penaltyPhase(game: Game) {
+ if (!game.rules.penaltiesAfterEntry) return {active: true, since: game.scorelessPenaltySince};
+ const entry = entryState(game);
+ return {active: entry.ready, since: Math.max(entry.since ?? game.turns.length, game.scorelessPenaltySince)};
+}
+
+export function activeScorelessTurns(game: Game, playerId: string): number {
+ const phase = penaltyPhase(game);
+ return game.rules.scorelessPenalty && phase.active ? scorelessTurns(game.turns, playerId, phase.since) : 0;
 }
 
 export function scoringTurnAtRisk(turns: Turn[], playerId: string): Turn | undefined {
@@ -78,7 +108,7 @@ export function playerTurnHistory(turns: Turn[], playerId: string) {
 // same pre-turn scores, so a deduction cannot trigger another deduction.
 export function previewTiePenalties(game: Game, points = scoreValue(game.input)): TiePenalty[] {
  const player = game.players[game.current];
- if (game.status !== 'playing' || !game.rules.tiePenalty || !player || points === null || points <= 0) return [];
+ if (game.status !== 'playing' || !game.rules.tiePenalty || !penaltyPhase(game).active || !player || points === null || points <= 0) return [];
  const total = player.score + points;
  if (game.rules.exactTarget && total > TARGET) return [];
  return game.players.flatMap(opponent => {
@@ -93,7 +123,8 @@ export function changeRule(game: Game, rule: keyof Rules, enabled: boolean): Gam
  return {
   ...game,
   rules: {...game.rules, [rule]: enabled},
-  scorelessPenaltySince: rule === 'scorelessPenalty' ? game.turns.length : game.scorelessPenaltySince,
+  // Turning on the scoreless rule, or changing when penalties start, begins a fresh streak.
+  scorelessPenaltySince: rule === 'scorelessPenalty' || rule === 'penaltiesAfterEntry' ? game.turns.length : game.scorelessPenaltySince,
  };
 }
 
@@ -109,7 +140,8 @@ export function saveTurn(game: Game): Game {
  const points = scoreValue(game.input);
  if (game.status !== 'playing' || points === null || !game.players[game.current]) return game;
  const player = game.players[game.current];
- const turn = createTurn(game.turns, player, points, game.rules, game.scorelessPenaltySince);
+ const phase = penaltyPhase(game);
+ const turn = createTurn(game.turns, player, points, {...game.rules, scorelessPenalty: game.rules.scorelessPenalty && phase.active}, phase.since);
  turn.tiePenalties = previewTiePenalties(game, points);
  const players = game.players.map(p => {
   if (p.id === player.id) return {...p, score: p.score + turn.scoreChange};
@@ -161,7 +193,7 @@ function migrateV1(g: StoredGame): Game {
   ...g,
   version: 5,
   turns: g.turns.map(turn => ({playerId: turn.playerId, points: turn.points, scoreChange: turn.points, bust: false, penalty: 0, tiePenalties: [], at: turn.at})),
-  rules: {exactTarget: false, scorelessPenalty: false, tiePenalty: false},
+  rules: {exactTarget: false, scorelessPenalty: false, tiePenalty: false, penaltiesAfterEntry: false},
   scorelessPenaltySince: g.turns.length,
  };
 }
@@ -177,8 +209,10 @@ export function decodeGame(raw: string): Game | null {
    return migrateV1(g);
   }
   const rules: Rules = g.version === 2
-   ? {exactTarget: true, scorelessPenalty: true, tiePenalty: false}
-   : {exactTarget: g.rules?.exactTarget === true, scorelessPenalty: g.rules?.scorelessPenalty === true, tiePenalty: g.version === 5 && g.rules?.tiePenalty === true};
+   ? {exactTarget: true, scorelessPenalty: true, tiePenalty: false, penaltiesAfterEntry: false}
+   // Games saved before this rule existed applied penalties from the first turn.
+   : {exactTarget: g.rules?.exactTarget === true, scorelessPenalty: g.rules?.scorelessPenalty === true, tiePenalty: g.version === 5 && g.rules?.tiePenalty === true, penaltiesAfterEntry: g.rules?.penaltiesAfterEntry === true};
+  if (g.rules?.penaltiesAfterEntry !== undefined && typeof g.rules.penaltiesAfterEntry !== 'boolean') return null;
   if (g.version >= 3 && (typeof g.rules?.exactTarget !== 'boolean' || typeof g.rules?.scorelessPenalty !== 'boolean')) return null;
   if (g.version === 5 && (typeof g.rules?.tiePenalty !== 'boolean' || g.turns.some(turn => !Array.isArray(turn.tiePenalties)))) return null;
   if (g.version >= 4 && (!Number.isInteger(g.scorelessPenaltySince) || g.scorelessPenaltySince! < 0 || g.scorelessPenaltySince! > g.turns.length)) return null;

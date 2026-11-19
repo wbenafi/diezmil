@@ -29,7 +29,7 @@ assert.equal(await exactRule.isChecked(),true);
 assert.equal(await penaltyRule.isChecked(),true);
 await exactRule.check();
 await penaltyRule.check();
-await page.getByText('3 reglas activas').waitFor();
+await page.getByText('4 reglas activas').waitFor();
 await page.screenshot({path:'.impeccable/review/setup-rules.png',fullPage:true});
 await page.locator('.rules-menu summary').click();
 await page.screenshot({path:'.impeccable/review/setup.png',fullPage:true});
@@ -62,7 +62,9 @@ await page.getByText('Se pasa de 10.000. Este turno contará sin puntos.').waitF
 await page.screenshot({path:'.impeccable/review/bust-desktop.png',fullPage:true});
 await page.getByRole('button',{name:'Registrar pasada'}).click();
 assert.equal(await page.locator('.current-player h2').innerText(),'Eli');
-assert.deepEqual(await page.locator('.scoreless-streak').allInnerTexts(),['1','1']);
+// Keylor and Eli are still below 300, so penalties wait and no rayitas show.
+await page.getByText('Penalizaciones cuando todos tengan 300 o más').waitFor();
+assert.deepEqual(await page.locator('.scoreless-streak').allInnerTexts(),[]);
 await page.getByLabel('Puntaje del turno').fill('10000');
 await page.getByRole('button',{name:'Guardar 10.000'}).click();
 await page.getByRole('heading',{name:'¡Eli ganó!'}).waitFor();
