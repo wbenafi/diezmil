@@ -26,3 +26,8 @@ Enter whole-number points, including zero. Quick-add buttons increment the entry
 The original PRODUCT_REQUIREMENTS.md and DESIGN.md remain the source requirements.
 
 "Penalties at 300 or more" is a game rule, on by default for new games: the three-turn and tie penalties wait until every player's running total has reached 300. Points below 300 always count. While penalties wait, the standings show one global notice. The turn that brings the last player to 300 is protected; rayitas start at zero after it. Reaching 300 is derived from saved history, so undo/reload work and later deductions below 300 do not pause penalties again. Adding a player during play pauses penalties until they reach 300. Turning the rule off applies penalties immediately with a fresh streak. Games saved before this rule existed keep it off, so their results are preserved.
+
+## Install as an app (PWA)
+DiezMil is a progressive web app: open the deployed site on your phone and add it to the home screen (Android Chrome: menu → *Install app*; iPhone Safari: Share → *Add to Home Screen*). Once opened online one time it also works offline.
+
+The service worker (`public/sw.js`) only registers in production builds. To check it locally run `npm run build && npm start`, then `APP_URL=http://localhost:3000 npm run test:pwa`. Bump `VERSION` in `public/sw.js` to force every installed copy to refresh its cache.
